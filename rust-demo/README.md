@@ -1,8 +1,20 @@
 # rust graceful shutdown demo
 
-This folder contains a simple rust function with [CloudWatch Lambda Insight](https://docs.aws.amazon.com/lambda/latest/dg/monitoring-insights.html) enabled. CloudWatch Lambda Insight is
+## Generating graceful shutdown signals
+
+In order for Lambda to support graceful shutdown, at least one extension must be registered for your function.
+This folder contains two examples demonstrating this. One uses an external extension, and one uses an internal extension.
+
+For more information on the difference between the two, see [these Lambda Extensions API docs](https://docs.aws.amazon.com/lambda/latest/dg/runtimes-extensions-api.html).
+
+### External extension
+
+An external extension runs as a separate process alongside your function's process. This can be easier to reason about and keep your code simpler,
+though it might add additional overhead if you don't actually need an external extension.
+
+The external extension example assumes that the [CloudWatch Lambda Insight](https://docs.aws.amazon.com/lambda/latest/dg/monitoring-insights.html) is enabled. CloudWatch Lambda Insight is a
 monitoring and troubleshooting solution for serverless application. Its agent is an external extension. Any external
-extension will work. We use Lambda Insight extension simply because it is readily available.
+extension will work. We use Lambda Insight extension simply because it is readily available and useful. Note that this may incurs additional billing fees.
 
 *It is recommended to use the latest [Lambda Insights extension](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Lambda-Insights-extension-versions.html)*
 ```yaml
@@ -13,6 +25,15 @@ extension will work. We use Lambda Insight extension simply because it is readil
     # Add IAM Permission for Lambda Insight Extension
     - CloudWatchLambdaInsightsExecutionRolePolicy
 ```
+
+### Internal extension
+
+Alternately, you can register an extension directly from within your Rust process. This adds code complexity but is somewhat lighter weight.
+
+In our case, we use a dummy no-op extension that doesn't subscribe to any events. You can also use an internal extension that has
+useful functionality - for instance, see this example of an internal extension that flushes telemetry: [ref](https://github.com/awslabs/aws-lambda-rust-runtime/blob/main/examples/extension-internal-flush).
+
+## Signal handling in the function
 
 In the function, a simple signal handler is added. It will be executed when the lambda runtime receives
 a `SIGTERM`、`SIGINT` signal. You can also add more signal types yourself.
@@ -40,7 +61,10 @@ tokio::spawn(async move {
     }
 });
 ```
-Use the following AWS SAM CLI commands to build and deploy this demo.
+
+## Deploy and Test
+
+Use the following AWS SAM CLI commands from within one of the two examples' subdirectories to build and deploy this demo.
 
 ```bash
 # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/building-rust.html#building-rust-prerequisites
@@ -54,7 +78,7 @@ Take note of the output value of `RustHelloWorldApi`. Use curl to invoke the api
 curl "replace this with value of RustHelloWorldApi"
 ```
 
-Waite for several minutes, check the function's log messages in CloudWatch. If you see a log line containing "SIGTERM
+Wait for several minutes, check the function's log messages in CloudWatch. If you see a log line containing "SIGTERM
 received", it works!
 
 for example:
